@@ -1,0 +1,13 @@
+{
+  "name": "web3-brief-cloud",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "daily": "node src/runDaily.js",
+    "preview": "node src/runDaily.js --dry-run"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
