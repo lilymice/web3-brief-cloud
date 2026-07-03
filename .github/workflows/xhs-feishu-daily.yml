@@ -19,99 +19,59 @@ jobs:
             exit 1
           fi
 
-          weekday=$(TZ=Asia/Shanghai date +%u)
-          topic_link="obsidian://open?vault=%E5%B0%8F%E7%BA%A2%E4%B9%A6%E9%AB%98%E7%AB%AF%E9%9B%8C%E7%AB%9E%E9%80%89%E9%A2%98%E5%BA%93&file=01_%E9%80%89%E9%A2%98%E6%80%BB%E8%A7%88"
-          content_link="obsidian://open?vault=%E5%B0%8F%E7%BA%A2%E4%B9%A6%E9%AB%98%E7%AB%AF%E9%9B%8C%E7%AB%9E%E9%80%89%E9%A2%98%E5%BA%93&file=02_%E5%86%85%E5%AE%B9%E7%B3%BB%E7%BB%9F%2F%E5%86%85%E5%AE%B9%E6%A0%8F%E7%9B%AE%E4%B8%8E%E9%80%89%E9%A2%98%E6%96%B9%E5%90%91"
-          structure_link="obsidian://open?vault=%E5%B0%8F%E7%BA%A2%E4%B9%A6%E9%AB%98%E7%AB%AF%E9%9B%8C%E7%AB%9E%E9%80%89%E9%A2%98%E5%BA%93&file=02_%E5%86%85%E5%AE%B9%E7%B3%BB%E7%BB%9F%2F%E7%AC%94%E8%AE%B0%E7%BB%93%E6%9E%84%E6%A8%A1%E6%9D%BF"
-          publish_review_link="obsidian://open?vault=%E5%B0%8F%E7%BA%A2%E4%B9%A6%E9%AB%98%E7%AB%AF%E9%9B%8C%E7%AB%9E%E9%80%89%E9%A2%98%E5%BA%93&file=03_%E5%8F%91%E5%B8%83%E5%A4%8D%E7%9B%98"
-          weekly_review_link="obsidian://open?vault=%E5%B0%8F%E7%BA%A2%E4%B9%A6%E9%AB%98%E7%AB%AF%E9%9B%8C%E7%AB%9E%E9%80%89%E9%A2%98%E5%BA%93&file=03_%E6%B5%81%E9%87%8F%E5%A4%8D%E7%9B%98%2F%E5%91%A8%E5%A4%8D%E7%9B%98%E6%A8%A1%E6%9D%BF"
+          python3 - <<'PY' > payload.json
+          import json
+          import os
+          import urllib.request
+          from datetime import datetime, timezone, timedelta
 
-          case "$weekday" in
-            1)
-              day_name="周一"
-              focus="破圈争议 1 篇 + 世界观 1 篇"
-              goal="先拿讨论，再补账号标签。"
-              open_links="打开选题总览：${topic_link}
-打开内容栏目：${content_link}
-打开笔记结构：${structure_link}
-打开发布复盘：${publish_review_link}"
-              ;;
-            2)
-              day_name="周二"
-              focus="干货清单 1 篇 + 复写上周高评论题 1 篇"
-              goal="用收藏和复写验证哪个角度值得继续打。"
-              open_links="打开选题总览：${topic_link}
-打开内容栏目：${content_link}
-打开笔记结构：${structure_link}
-打开发布复盘：${publish_review_link}"
-              ;;
-            3)
-              day_name="周三"
-              focus="破圈争议 1 篇"
-              goal="只验证一个争议点能不能让用户发言。"
-              open_links="打开选题总览：${topic_link}
-打开内容栏目：${content_link}
-打开笔记结构：${structure_link}
-打开发布复盘：${publish_review_link}"
-              ;;
-            4)
-              day_name="周四"
-              focus="世界观 1 篇 + 干货清单 1 篇"
-              goal="让用户既知道你有体系，也觉得你能帮她具体变好。"
-              open_links="打开选题总览：${topic_link}
-打开内容栏目：${content_link}
-打开笔记结构：${structure_link}
-打开发布复盘：${publish_review_link}"
-              ;;
-            5)
-              day_name="周五"
-              focus="破圈争议 1 篇"
-              goal="冲评论区表达、站队、反驳和故事。"
-              open_links="打开选题总览：${topic_link}
-打开内容栏目：${content_link}
-打开笔记结构：${structure_link}
-打开发布复盘：${publish_review_link}"
-              ;;
-            6)
-              day_name="周六"
-              focus="故事型长文 1 篇"
-              goal="用具体人物和关系场景拉情绪代入。"
-              open_links="打开选题总览：${topic_link}
-打开内容栏目：${content_link}
-打开笔记结构：${structure_link}
-打开发布复盘：${publish_review_link}"
-              ;;
-            7)
-              day_name="周日"
-              focus="周复盘 + 复写 2 篇"
-              goal="找出下周最值得继续打的 3 个爆点。"
-              open_links="打开周复盘：${weekly_review_link}
-打开发布复盘：${publish_review_link}
-打开选题总览：${topic_link}
-打开内容栏目：${content_link}"
-              ;;
-          esac
+          cn = timezone(timedelta(hours=8))
+          weekday = datetime.now(cn).isoweekday()
 
-          text="小红书今日固定任务｜${day_name}
+          plans = {
+              1: ("周一", "破圈争议 1 篇 + 世界观 1 篇", "先拿讨论，再补账号标签。"),
+              2: ("周二", "干货清单 1 篇 + 复写上周高评论题 1 篇", "用收藏和复写验证哪个角度值得继续打。"),
+              3: ("周三", "破圈争议 1 篇", "只验证一个争议点能不能让用户发言。"),
+              4: ("周四", "世界观 1 篇 + 干货清单 1 篇", "让用户既知道你有体系，也觉得你能帮她具体变好。"),
+              5: ("周五", "破圈争议 1 篇", "冲评论区表达、站队、反驳和故事。"),
+              6: ("周六", "故事型长文 1 篇", "用具体人物和关系场景拉情绪代入。"),
+              7: ("周日", "周复盘 + 复写 2 篇", "找出下周最值得继续打的 3 个爆点。"),
+          }
 
-今日重点：${focus}
-今日目标：${goal}
+          day_name, focus, goal = plans[weekday]
 
-今天不现场发散选题，只从现有选题库里选。
+          topic_url = "obsidian://open?vault=%E5%B0%8F%E7%BA%A2%E4%B9%A6%E9%AB%98%E7%AB%AF%E9%9B%8C%E7%AB%9E%E9%80%89%E9%A2%98%E5%BA%93&file=01_%E9%80%89%E9%A2%98%E6%80%BB%E8%A7%88"
+          content_url = "obsidian://open?vault=%E5%B0%8F%E7%BA%A2%E4%B9%A6%E9%AB%98%E7%AB%AF%E9%9B%8C%E7%AB%9E%E9%80%89%E9%A2%98%E5%BA%93&file=02_%E5%86%85%E5%AE%B9%E7%B3%BB%E7%BB%9F%2F%E5%86%85%E5%AE%B9%E6%A0%8F%E7%9B%AE%E4%B8%8E%E9%80%89%E9%A2%98%E6%96%B9%E5%90%91"
+          structure_url = "obsidian://open?vault=%E5%B0%8F%E7%BA%A2%E4%B9%A6%E9%AB%98%E7%AB%AF%E9%9B%8C%E7%AB%9E%E9%80%89%E9%A2%98%E5%BA%93&file=02_%E5%86%85%E5%AE%B9%E7%B3%BB%E7%BB%9F%2F%E7%AC%94%E8%AE%B0%E7%BB%93%E6%9E%84%E6%A8%A1%E6%9D%BF"
+          review_url = "obsidian://open?vault=%E5%B0%8F%E7%BA%A2%E4%B9%A6%E9%AB%98%E7%AB%AF%E9%9B%8C%E7%AB%9E%E9%80%89%E9%A2%98%E5%BA%93&file=03_%E5%8F%91%E5%B8%83%E5%A4%8D%E7%9B%98"
+          weekly_url = "obsidian://open?vault=%E5%B0%8F%E7%BA%A2%E4%B9%A6%E9%AB%98%E7%AB%AF%E9%9B%8C%E7%AB%9E%E9%80%89%E9%A2%98%E5%BA%93&file=03_%E6%B5%81%E9%87%8F%E5%A4%8D%E7%9B%98%2F%E5%91%A8%E5%A4%8D%E7%9B%98%E6%A8%A1%E6%9D%BF"
 
-1. 从选题库选定今天要做的内容
-2. 写完正文初稿
-3. 做完封面
-4. 发布前检查：标题、封面、正文、评论钩子
-5. 发布笔记
-6. 晚上记录：浏览、点赞、收藏、评论、涨粉、私信/需求
-7. 写一句：今天这篇最值得复写的是？
+          actions = [
+              {"tag": "button", "text": {"tag": "plain_text", "content": "选题总览"}, "url": topic_url, "type": "default"},
+              {"tag": "button", "text": {"tag": "plain_text", "content": "内容栏目"}, "url": content_url, "type": "default"},
+              {"tag": "button", "text": {"tag": "plain_text", "content": "笔记结构"}, "url": structure_url, "type": "default"},
+              {"tag": "button", "text": {"tag": "plain_text", "content": "发布复盘"}, "url": review_url, "type": "primary"},
+          ]
+          if weekday == 7:
+              actions.insert(0, {"tag": "button", "text": {"tag": "plain_text", "content": "周复盘"}, "url": weekly_url, "type": "primary"})
 
-${open_links}
+          payload = {
+              "msg_type": "interactive",
+              "card": {
+                  "config": {"wide_screen_mode": True},
+                  "header": {"template": "blue", "title": {"tag": "plain_text", "content": f"小红书今日固定任务｜{day_name}"}},
+                  "elements": [
+                      {"tag": "div", "text": {"tag": "lark_md", "content": f"**今日重点：**{focus}\n\n**今日目标：**{goal}\n\n今天不现场发散选题，只从现有选题库里选。"}},
+                      {"tag": "hr"},
+                      {"tag": "div", "text": {"tag": "lark_md", "content": "1. 从选题库选定今天要做的内容\n2. 写完正文初稿\n3. 做完封面\n4. 发布前检查：标题、封面、正文、评论钩子\n5. 发布笔记\n6. 晚上记录：浏览、点赞、收藏、评论、涨粉、私信/需求\n7. 写一句：今天这篇最值得复写的是？"}},
+                      {"tag": "action", "actions": actions},
+                      {"tag": "note", "elements": [{"tag": "plain_text", "content": "今天不重新定方向，不整理整套选题库，不为了完美拖延发布。"}]},
+                  ],
+              },
+          }
 
-今天不重新定方向，不整理整套选题库，不为了完美拖延发布。"
-
-          TEXT="$text" python3 -c 'import json, os; print(json.dumps({"msg_type": "text", "content": {"text": os.environ["TEXT"]}}, ensure_ascii=False))' > payload.json
+          print(json.dumps(payload, ensure_ascii=False))
+          PY
 
           curl --fail --silent --show-error \
             -X POST "$XHS_FEISHU_WEBHOOK_URL" \
