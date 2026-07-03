@@ -21,8 +21,6 @@ jobs:
 
           python3 - <<'PY' > payload.json
           import json
-          import os
-          import urllib.request
           from datetime import datetime, timezone, timedelta
 
           cn = timezone(timedelta(hours=8))
@@ -39,21 +37,16 @@ jobs:
           }
 
           day_name, focus, goal = plans[weekday]
-
-          topic_url = "obsidian://open?vault=%E5%B0%8F%E7%BA%A2%E4%B9%A6%E9%AB%98%E7%AB%AF%E9%9B%8C%E7%AB%9E%E9%80%89%E9%A2%98%E5%BA%93&file=01_%E9%80%89%E9%A2%98%E6%80%BB%E8%A7%88"
-          content_url = "obsidian://open?vault=%E5%B0%8F%E7%BA%A2%E4%B9%A6%E9%AB%98%E7%AB%AF%E9%9B%8C%E7%AB%9E%E9%80%89%E9%A2%98%E5%BA%93&file=02_%E5%86%85%E5%AE%B9%E7%B3%BB%E7%BB%9F%2F%E5%86%85%E5%AE%B9%E6%A0%8F%E7%9B%AE%E4%B8%8E%E9%80%89%E9%A2%98%E6%96%B9%E5%90%91"
-          structure_url = "obsidian://open?vault=%E5%B0%8F%E7%BA%A2%E4%B9%A6%E9%AB%98%E7%AB%AF%E9%9B%8C%E7%AB%9E%E9%80%89%E9%A2%98%E5%BA%93&file=02_%E5%86%85%E5%AE%B9%E7%B3%BB%E7%BB%9F%2F%E7%AC%94%E8%AE%B0%E7%BB%93%E6%9E%84%E6%A8%A1%E6%9D%BF"
-          review_url = "obsidian://open?vault=%E5%B0%8F%E7%BA%A2%E4%B9%A6%E9%AB%98%E7%AB%AF%E9%9B%8C%E7%AB%9E%E9%80%89%E9%A2%98%E5%BA%93&file=03_%E5%8F%91%E5%B8%83%E5%A4%8D%E7%9B%98"
-          weekly_url = "obsidian://open?vault=%E5%B0%8F%E7%BA%A2%E4%B9%A6%E9%AB%98%E7%AB%AF%E9%9B%8C%E7%AB%9E%E9%80%89%E9%A2%98%E5%BA%93&file=03_%E6%B5%81%E9%87%8F%E5%A4%8D%E7%9B%98%2F%E5%91%A8%E5%A4%8D%E7%9B%98%E6%A8%A1%E6%9D%BF"
+          base = "https://lilymice.github.io/web3-brief-cloud/open-obsidian.html?target="
 
           actions = [
-              {"tag": "button", "text": {"tag": "plain_text", "content": "选题总览"}, "url": topic_url, "type": "default"},
-              {"tag": "button", "text": {"tag": "plain_text", "content": "内容栏目"}, "url": content_url, "type": "default"},
-              {"tag": "button", "text": {"tag": "plain_text", "content": "笔记结构"}, "url": structure_url, "type": "default"},
-              {"tag": "button", "text": {"tag": "plain_text", "content": "发布复盘"}, "url": review_url, "type": "primary"},
+              {"tag": "button", "text": {"tag": "plain_text", "content": "选题总览"}, "url": base + "topic", "type": "default"},
+              {"tag": "button", "text": {"tag": "plain_text", "content": "内容栏目"}, "url": base + "content", "type": "default"},
+              {"tag": "button", "text": {"tag": "plain_text", "content": "笔记结构"}, "url": base + "structure", "type": "default"},
+              {"tag": "button", "text": {"tag": "plain_text", "content": "发布复盘"}, "url": base + "review", "type": "primary"},
           ]
           if weekday == 7:
-              actions.insert(0, {"tag": "button", "text": {"tag": "plain_text", "content": "周复盘"}, "url": weekly_url, "type": "primary"})
+              actions.insert(0, {"tag": "button", "text": {"tag": "plain_text", "content": "周复盘"}, "url": base + "weekly", "type": "primary"})
 
           payload = {
               "msg_type": "interactive",
