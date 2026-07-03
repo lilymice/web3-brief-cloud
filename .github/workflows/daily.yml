@@ -2,8 +2,8 @@ name: Daily Web3 Radar
 
 on:
   schedule:
-    # 13:10 Asia/Shanghai.
-    - cron: "10 5 * * *"
+    # 13:17 Asia/Shanghai. Avoid top-of-hour schedule congestion.
+    - cron: "17 5 * * *"
   workflow_dispatch:
 
 permissions:
