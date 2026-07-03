@@ -2,8 +2,8 @@ name: Daily Web3 Radar
 
 on:
   schedule:
-    # 09:17 Asia/Shanghai. Avoid GitHub Actions top-of-hour schedule congestion.
-    - cron: "17 1 * * *"
+    # 13:00 Asia/Shanghai.
+    - cron: "0 5 * * *"
   workflow_dispatch:
 
 permissions:
