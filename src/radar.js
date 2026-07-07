@@ -129,6 +129,95 @@ export function buildFeishuMessage(radar, siteUrl) {
   return lines.filter(Boolean).join("\n").slice(0, 900);
 }
 
+export function buildFeishuCard(radar, siteUrl) {
+  const byCode = Object.fromEntries(radar.items.map((item) => [item.code, item]));
+  const topSignal = byCode.M03;
+  const market = byCode.M01;
+  const perp = byCode.M02;
+  const writeOne = byCode.X02;
+  const writeTwo = byCode.X03;
+  const watchOne = byCode.W02;
+  const watchTwo = byCode.W03;
+
+  const elements = [
+    markdownBlock(`**T00 总判断**\n${cleanFeishuLine(byCode.T00?.title || "今天没有足够硬的主线。", 90)}`),
+    { tag: "hr" },
+    markdownBlock(`**M03 今日主线**\n${cleanFeishuLine(topSignal?.title || "新闻主题分散，先降噪。", 120)}`),
+    markdownBlock(`**为什么重要**\n${cleanFeishuLine(topSignal?.detail || "这条线决定今天内容该往哪边写。", 120)}`),
+    {
+      tag: "div",
+      fields: [
+        {
+          is_short: true,
+          text: {
+            tag: "lark_md",
+            content: `**市场读数**\n${cleanFeishuLine(market?.title || "BTC/ETH 暂无数据", 52)}`
+          }
+        },
+        {
+          is_short: true,
+          text: {
+            tag: "lark_md",
+            content: `**风险偏好**\n${cleanFeishuLine(perp?.title || "HYPE 暂无数据", 52)}`
+          }
+        }
+      ]
+    },
+    { tag: "hr" },
+    markdownBlock(`**X 可写切口**\n- X02｜${cleanFeishuLine(writeOne?.title || "今天不硬凑选题。", 72)}\n- X03｜${cleanFeishuLine(writeTwo?.title || "备用切口等详情页。", 72)}`),
+    markdownBlock(`**W 明天盯盘**\n- W02｜${cleanFeishuLine(watchOne?.title || "明天看主线是否延续。", 72)}\n- W03｜${cleanFeishuLine(watchTwo?.title || "看是否有第二来源确认。", 72)}`)
+  ];
+
+  if (siteUrl) {
+    elements.push({
+      tag: "action",
+      actions: [
+        {
+          tag: "button",
+          text: { tag: "plain_text", content: "打开详情页" },
+          url: siteUrl,
+          type: "primary"
+        }
+      ]
+    });
+  }
+
+  elements.push({
+    tag: "note",
+    elements: [
+      {
+        tag: "plain_text",
+        content: "飞书看摘要，详情页看来源和展开。不做投资建议。"
+      }
+    ]
+  });
+
+  return {
+    msg_type: "interactive",
+    card: {
+      config: { wide_screen_mode: true },
+      header: {
+        template: "blue",
+        title: {
+          tag: "plain_text",
+          content: radar.title
+        }
+      },
+      elements
+    }
+  };
+}
+
+function markdownBlock(content) {
+  return {
+    tag: "div",
+    text: {
+      tag: "lark_md",
+      content
+    }
+  };
+}
+
 function buildThesis({ btc, eth, hype, news, tags }) {
   const btcChange = btc?.change24h ?? 0;
   const ethChange = eth?.change24h ?? 0;
