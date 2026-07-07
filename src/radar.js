@@ -127,6 +127,7 @@ function buildThesis({ btc, eth, hype, news, tags }) {
   if (btcChange > 2 && ethChange > btcChange) return "风险偏好有扩散迹象，重点看 ETH 和链上 beta 是否接力。";
   if (Math.abs(hypeChange) > Math.abs(btcChange) + 3) return "大盘信号一般，但链上交易叙事有独立波动，适合盯 Perp DEX。";
   if (tags.includes("安全")) return "安全事件权重上升，今天先看风险外溢，不急着写机会。";
+  if (tags.includes("BTC 财库")) return "BTC 财库公司出现卖出或融资信号，今天先看机构持币叙事有没有松动。";
   if (tags.includes("机构/ETF")) return "机构和 ETF 线索在抬头，今天先看资金，不急着写项目情绪。";
   if (tags.includes("RWA")) return "RWA 线索出现，重点看资产、赎回和合规，不写空泛叙事。";
   if (tags.includes("AI Agent")) return "AI Agent 线索出现，重点看钱包权限、自动执行和风控边界。";
@@ -201,6 +202,7 @@ function getNarrativeTags(news) {
 
 function classifyTitle(title) {
   const tags = [];
+  if (/strategy|microstrategy|mstr|saylor|bitcoin treasury|btc treasury|corporate treasury|treasury company/i.test(title)) tags.push("BTC 财库");
   if (/etf|blackrock|coinbase|robinhood|institution|treasury|fund|flow/i.test(title)) tags.push("机构/ETF");
   if (/defi|aave|uniswap|ethena|stablecoin|usde|lending|dex|yield/i.test(title)) tags.push("DeFi/稳定币");
   if (/rwa|tokenization|tokenized|real.world|treasury|bond/i.test(title)) tags.push("RWA");
@@ -215,6 +217,8 @@ function classifyTitle(title) {
 
 function scoreTitle(title) {
   let score = 0;
+  if (/strategy|microstrategy|mstr|saylor|bitcoin treasury|btc treasury|corporate treasury|treasury company/i.test(title)) score += 10;
+  if (/sell|sells|sold|selling|offload|offloads|raise|raises|stock sale|debt|liquidat/i.test(title) && /bitcoin|btc|strategy|microstrategy|mstr|saylor/i.test(title)) score += 8;
   if (/etf|blackrock|fed|sec|coinbase|binance|robinhood/i.test(title)) score += 5;
   if (/hack|exploit|stolen|security/i.test(title)) score += 5;
   if (/hyperliquid|ethena|aave|uniswap|rwa|tokenization|\b(ai|agent|agents)\b/i.test(title)) score += 4;
