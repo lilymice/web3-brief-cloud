@@ -10,6 +10,14 @@ const NEWS_FEEDS = [
   {
     name: "Cointelegraph",
     url: "https://cointelegraph.com/rss"
+  },
+  {
+    name: "CryptoSlate",
+    url: "https://cryptoslate.com/feed/"
+  },
+  {
+    name: "Google News Strategy",
+    url: "https://news.google.com/rss/search?q=(Strategy%20OR%20MicroStrategy%20OR%20MSTR%20OR%20Saylor)%20bitcoin&hl=en-US&gl=US&ceid=US:en"
   }
 ];
 
@@ -90,7 +98,7 @@ async function getNews() {
     .filter((item) => item.status === "fulfilled")
     .flatMap((item) => item.value.items)
     .filter((item) => isRelevant(item.title))
-    .slice(0, 12);
+    .slice(0, 60);
 }
 
 function normalizePrice(row) {
@@ -120,7 +128,7 @@ function parseRss(xml, source) {
 }
 
 function isRelevant(title) {
-  return /bitcoin|btc|ethereum|eth|etf|stablecoin|defi|rwa|tokenization|ai|agent|hyperliquid|aave|uniswap|ethena|solana|l2|hack|security|sec|fed|blackrock|coinbase|binance/i.test(title);
+  return /bitcoin|btc|ethereum|eth|etf|stablecoin|defi|rwa|tokenization|ai|agent|hyperliquid|aave|uniswap|ethena|solana|l2|hack|security|sec|fed|blackrock|coinbase|binance|strategy|microstrategy|mstr|saylor|treasury/i.test(title);
 }
 
 function pickTag(input, tag) {
