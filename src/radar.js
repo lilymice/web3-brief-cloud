@@ -105,17 +105,41 @@ export function buildRadar(data, options = {}) {
 }
 
 export function buildFeishuMessage(radar, siteUrl) {
+  const byCode = Object.fromEntries(radar.items.map((item) => [item.code, item]));
+  const topSignal = byCode.M03;
+  const writeOne = byCode.X02;
+  const writeTwo = byCode.X03;
+  const watchOne = byCode.W02;
+  const watchTwo = byCode.W03;
+
   const lines = [
     radar.title,
     "",
-    ...radar.items.map((item) => `${item.code}｜${item.title}`)
+    `【T00 总判断】`,
+    byCode.T00 ? cleanFeishuLine(byCode.T00.title, 88) : "今天没有足够硬的主线。",
+    "",
+    `【M01 市场读数】`,
+    byCode.M01 ? cleanFeishuLine(byCode.M01.title, 88) : "BTC/ETH 暂无价格数据。",
+    byCode.M02 ? cleanFeishuLine(byCode.M02.title, 88) : "",
+    "",
+    `【M03 今日主线】`,
+    topSignal ? cleanFeishuLine(topSignal.title, 96) : "新闻主题分散，先降噪。",
+    topSignal?.detail ? `为什么重要：${cleanFeishuLine(topSignal.detail, 110)}` : "",
+    "",
+    `【X 可写切口】`,
+    writeOne ? `X02｜${cleanFeishuLine(writeOne.title, 88)}` : "",
+    writeTwo ? `X03｜${cleanFeishuLine(writeTwo.title, 88)}` : "",
+    "",
+    `【W 明天盯盘】`,
+    watchOne ? `W02｜${cleanFeishuLine(watchOne.title, 88)}` : "",
+    watchTwo ? `W03｜${cleanFeishuLine(watchTwo.title, 88)}` : ""
   ];
 
   if (siteUrl) {
     lines.push("", `详情页：${siteUrl}`);
   }
 
-  return lines.join("\n").slice(0, 1800);
+  return lines.filter(Boolean).join("\n").slice(0, 1800);
 }
 
 function buildThesis({ btc, eth, hype, news, tags }) {
@@ -234,6 +258,11 @@ function describeTags(tags) {
 function shortTitle(title, maxLength) {
   if (!title) return "";
   return title.length > maxLength ? `${title.slice(0, maxLength - 1)}…` : title;
+}
+
+function cleanFeishuLine(input, maxLength) {
+  if (!input) return "";
+  return shortTitle(String(input).replace(/\s+/g, " ").trim(), maxLength);
 }
 
 function formatUsd(value) {
