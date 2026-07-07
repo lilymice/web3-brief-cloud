@@ -108,38 +108,25 @@ export function buildFeishuMessage(radar, siteUrl) {
   const byCode = Object.fromEntries(radar.items.map((item) => [item.code, item]));
   const topSignal = byCode.M03;
   const writeOne = byCode.X02;
-  const writeTwo = byCode.X03;
   const watchOne = byCode.W02;
-  const watchTwo = byCode.W03;
 
   const lines = [
     radar.title,
     "",
-    `【T00 总判断】`,
-    byCode.T00 ? cleanFeishuLine(byCode.T00.title, 88) : "今天没有足够硬的主线。",
+    `T00｜${byCode.T00 ? cleanFeishuLine(byCode.T00.title, 42) : "今天没有足够硬的主线。"}`,
     "",
-    `【M01 市场读数】`,
-    byCode.M01 ? cleanFeishuLine(byCode.M01.title, 88) : "BTC/ETH 暂无价格数据。",
-    byCode.M02 ? cleanFeishuLine(byCode.M02.title, 88) : "",
+    `M03｜${topSignal ? cleanFeishuLine(topSignal.title, 54) : "新闻主题分散，先降噪。"}`,
     "",
-    `【M03 今日主线】`,
-    topSignal ? cleanFeishuLine(topSignal.title, 96) : "新闻主题分散，先降噪。",
-    topSignal?.detail ? `为什么重要：${cleanFeishuLine(topSignal.detail, 110)}` : "",
+    `X02｜${writeOne ? cleanFeishuLine(writeOne.title, 48) : "今天不硬凑选题。"}`,
     "",
-    `【X 可写切口】`,
-    writeOne ? `X02｜${cleanFeishuLine(writeOne.title, 88)}` : "",
-    writeTwo ? `X03｜${cleanFeishuLine(writeTwo.title, 88)}` : "",
-    "",
-    `【W 明天盯盘】`,
-    watchOne ? `W02｜${cleanFeishuLine(watchOne.title, 88)}` : "",
-    watchTwo ? `W03｜${cleanFeishuLine(watchTwo.title, 88)}` : ""
+    `W02｜${watchOne ? cleanFeishuLine(watchOne.title, 48) : "明天看主线是否延续。"}`
   ];
 
   if (siteUrl) {
-    lines.push("", `详情页：${siteUrl}`);
+    lines.push("", `详情：${siteUrl}`);
   }
 
-  return lines.filter(Boolean).join("\n").slice(0, 1800);
+  return lines.filter(Boolean).join("\n").slice(0, 900);
 }
 
 function buildThesis({ btc, eth, hype, news, tags }) {
@@ -262,7 +249,19 @@ function shortTitle(title, maxLength) {
 
 function cleanFeishuLine(input, maxLength) {
   if (!input) return "";
-  return shortTitle(String(input).replace(/\s+/g, " ").trim(), maxLength);
+  return shortTitle(humanizeTitle(String(input).replace(/\s+/g, " ").trim()), maxLength);
+}
+
+function humanizeTitle(input) {
+  return input
+    .replace(/^BTC 财库、监管\/宏观、机构\/ETF｜The Defiant: Strategy Sells 3,588 Bitcoin for \$216M to Fund Dividend Payments/i, "BTC 财库｜Strategy 卖出 3,588 BTC 筹 2.16 亿美元付股息")
+    .replace(/^BTC 财库：Strategy Sells 3,588 Bitcoin for \$216M to Fund Dividend Payments/i, "BTC 财库｜Strategy 卖币付股息，这条线可以拆")
+    .replace(/^BTC 财库｜继续看：Strategy Sells 3,588 Bitcoin.*/i, "BTC 财库｜明天看 MSTR/STRC 和后续披露")
+    .replace(/The Defiant:\s*/i, "")
+    .replace(/CoinDesk:\s*/i, "")
+    .replace(/Cointelegraph:\s*/i, "")
+    .replace(/CryptoSlate:\s*/i, "")
+    .replace(/Google News Strategy:\s*/i, "");
 }
 
 function formatUsd(value) {
