@@ -1,8 +1,8 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "./config.js";
-import { sendFeishuText } from "./feishu.js";
-import { buildFeishuMessage, buildRadar } from "./radar.js";
+import { sendFeishuMessage } from "./feishu.js";
+import { buildFeishuCard, buildFeishuMessage, buildRadar } from "./radar.js";
 import { renderSite } from "./renderSite.js";
 import { collectSources } from "./sources.js";
 
@@ -15,10 +15,11 @@ const radar = buildRadar(data, { title: config.title });
 const dailyFile = renderSite(radar, path.join(rootDir, "public"));
 const siteUrl = config.siteBaseUrl ? `${config.siteBaseUrl.replace(/\/$/, "")}/${dailyFile}` : "";
 const message = buildFeishuMessage(radar, siteUrl);
+const payload = buildFeishuCard(radar, siteUrl);
 
 console.log(message);
 
 if (!dryRun) {
-  await sendFeishuText(config.feishuWebhookUrl, message);
+  await sendFeishuMessage(config.feishuWebhookUrl, payload);
   console.log("Pushed to Feishu.");
 }
