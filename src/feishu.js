@@ -1,4 +1,11 @@
 export async function sendFeishuText(webhookUrl, text) {
+  return sendFeishuMessage(webhookUrl, {
+    msg_type: "text",
+    content: { text }
+  });
+}
+
+export async function sendFeishuMessage(webhookUrl, payload) {
   if (!webhookUrl) {
     console.log("No FEISHU_WEBHOOK_URL. Skip push.");
     return;
@@ -7,10 +14,7 @@ export async function sendFeishuText(webhookUrl, text) {
   const response = await fetch(webhookUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      msg_type: "text",
-      content: { text }
-    })
+    body: JSON.stringify(payload)
   });
 
   const body = await response.text();
