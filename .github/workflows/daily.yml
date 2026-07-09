@@ -2,8 +2,8 @@ name: Daily Web3 Radar
 
 on:
   schedule:
-    # 11:00 Asia/Shanghai.
-    - cron: "0 3 * * *"
+    # 11:17 Asia/Shanghai. GitHub schedule is less reliable at the top of the hour.
+    - cron: "17 3 * * *"
   workflow_dispatch:
 
 permissions:
