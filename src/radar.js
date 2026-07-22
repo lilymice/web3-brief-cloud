@@ -118,29 +118,25 @@ export function buildFeishuMessage(radar, siteUrl) {
   const topSignal = byCode.M03;
   const stablecoin = byCode.S01;
   const market = byCode.M01;
-  const writeOne = byCode.X02;
-  const watchOne = byCode.W02;
 
   const lines = [
     radar.title,
     "",
-    `一句话｜${byCode.T00 ? cleanFeishuLine(byCode.T00.title, 42) : "今天没有足够硬的主线。"}`,
+    "【价格】",
+    market ? cleanFeishuLine(market.title, 64) : "BTC/ETH 暂无数据",
     "",
-    "三个信号",
-    `M01｜${market ? cleanFeishuLine(market.title, 54) : "BTC/ETH 暂无数据。"}`,
-    `M03｜${topSignal ? cleanFeishuLine(topSignal.title, 54) : "新闻主题分散，先降噪。"}`,
-    `S01｜${stablecoin ? cleanFeishuLine(stablecoin.title, 54) : "稳定币暂无公司/监管新事件。"}`,
+    "【头条】",
+    formatNewsLine(topSignal, "暂无头条事件"),
     "",
-    `今天可写｜${writeOne ? cleanFeishuLine(writeOne.title, 48) : "今天不硬凑选题。"}`,
-    "",
-    `明天盯｜${watchOne ? cleanFeishuLine(watchOne.title, 48) : "明天看主线是否延续。"}`
+    "【稳定币】",
+    formatNewsLine(stablecoin, "过去 36 小时暂无稳定币公司/监管新事件")
   ];
 
   if (siteUrl) {
     lines.push("", `详情：${siteUrl}`);
   }
 
-  return lines.filter(Boolean).join("\n").slice(0, 900);
+  return lines.join("\n").slice(0, 900);
 }
 
 export function buildFeishuCard(radar, siteUrl) {
@@ -148,16 +144,13 @@ export function buildFeishuCard(radar, siteUrl) {
   const topSignal = byCode.M03;
   const market = byCode.M01;
   const stablecoin = byCode.S01;
-  const writeOne = byCode.X02;
-  const watchOne = byCode.W02;
 
   const elements = [
-    markdownBlock(`**一句话**\n${cleanFeishuLine(byCode.T00?.title || "今天没有足够硬的主线。", 86)}`),
+    markdownBlock(`**价格**\n${cleanFeishuLine(market?.title || "BTC/ETH 暂无数据", 88)}`),
     { tag: "hr" },
-    markdownBlock(`**三个信号**\nM01｜${cleanFeishuLine(market?.title || "BTC/ETH 暂无数据", 82)}\nM03｜${cleanFeishuLine(topSignal?.title || "新闻主题分散，先降噪。", 82)}\nS01｜${cleanFeishuLine(stablecoin?.title || "稳定币暂无公司/监管新事件", 82)}`),
+    markdownBlock(`**头条**\n${formatNewsBlock(topSignal, "暂无头条事件")}`),
     { tag: "hr" },
-    markdownBlock(`**今天可写**\n${cleanFeishuLine(writeOne?.title || "今天不硬凑选题。", 86)}`),
-    markdownBlock(`**明天只盯一件事**\n${cleanFeishuLine(watchOne?.title || "明天看主线是否延续。", 86)}`)
+    markdownBlock(`**稳定币**\n${formatNewsBlock(stablecoin, "过去 36 小时暂无稳定币公司/监管新事件")}`)
   ];
 
   if (siteUrl) {
@@ -179,7 +172,7 @@ export function buildFeishuCard(radar, siteUrl) {
     elements: [
       {
         tag: "plain_text",
-        content: "飞书只放主线。要展开就发编号，比如 M03、S01、X02。"
+        content: "新闻格式：标题、级别、来源、时间。无写作任务，无观点判断。"
       }
     ]
   });
@@ -356,6 +349,60 @@ function isLevelOne(title) {
   return /hack|exploit|stolen|attack|liquidat|bankrupt|insolven|halt|freeze|depeg|crash|lawsuit|charged|indict|settlement|etf approval|etf rejection|\bfed\b|rate cut|rate hike|\bsec\b|securities probe|binance.*(halt|freeze|hack|lawsuit|charged|settlement)|coinbase.*(halt|freeze|hack|lawsuit|charged|settlement)|strategy sells [\d,.]+ bitcoin|microstrategy sells [\d,.]+ bitcoin|strategy sells [\d,.]+ btc|microstrategy sells [\d,.]+ btc|bitcoin treasury.*sell/i.test(title);
 }
 
+function formatNewsBlock(item, fallback) {
+  if (!item) return fallback;
+  const title = cleanFeishuLine(newsHeadline(item.title), 90);
+  const meta = newsMeta(item);
+  return meta ? `${title}\n${meta}` : title;
+}
+
+function formatNewsLine(item, fallback) {
+  if (!item) return fallback;
+  const title = cleanFeishuLine(newsHeadline(item.title), 74);
+  const meta = newsMeta(item);
+  return meta ? `${title}\n${meta}` : title;
+}
+
+function newsHeadline(title) {
+  return String(title || "")
+    .replace(/^L\d+｜[^｜]+｜/, "")
+    .replace(/^稳定币｜/, "")
+    .replace(/｜[^｜]+｜\d+\s*小时前$/, "")
+    .trim();
+}
+
+function newsMeta(item) {
+  const level = extractLevel(item.title);
+  const source = extractSource(item);
+  const freshness = extractFreshness(item);
+  const tags = getDisplayTags(item.title);
+  return [level, source, freshness, tags].filter(Boolean).join("｜");
+}
+
+function extractLevel(title) {
+  const match = String(title || "").match(/^L(\d+)/);
+  return match ? `L${match[1]}` : "";
+}
+
+function extractSource(item) {
+  const fromTitle = String(item?.title || "").match(/｜([^｜]+)｜\d+\s*小时前$/);
+  if (fromTitle) return fromTitle[1];
+  const fromDetail = String(item?.detail || "").match(/来源\s*([^，。]+)/);
+  return fromDetail ? fromDetail[1].trim() : "";
+}
+
+function extractFreshness(item) {
+  const fromTitle = String(item?.title || "").match(/｜(\d+\s*小时前)$/);
+  if (fromTitle) return fromTitle[1];
+  const fromDetail = String(item?.detail || "").match(/新鲜度\s*([^，。]+)/);
+  return fromDetail ? fromDetail[1].trim() : "";
+}
+
+function getDisplayTags(title) {
+  const tags = classifyTitle(newsHeadline(title)).filter((tag) => !["BTC/ETH", "DeFi/稳定币"].includes(tag));
+  return tags.slice(0, 2).join(" / ");
+}
+
 function buildPriceLine({ btc, eth }) {
   if (typeof btc?.usd !== "number" && typeof eth?.usd !== "number") {
     return "BTC/ETH 价格源暂时不可用，今天先看新闻主线。";
@@ -408,7 +455,7 @@ function classifyTitle(title) {
   const tags = [];
   if (/strategy|microstrategy|mstr|saylor|bitcoin treasury|btc treasury|corporate treasury|treasury company/i.test(title)) tags.push("BTC 财库");
   if (/etf|blackrock|coinbase|robinhood|institution|treasury|fund|flow/i.test(title)) tags.push("机构/ETF");
-  if (/stablecoin|usdt|usdc|usde|tether|circle|depeg/i.test(title)) tags.push("稳定币");
+  if (/稳定币|stablecoin|usdt|usdc|usde|tether|circle|depeg|bis/i.test(title)) tags.push("稳定币");
   if (/defi|aave|uniswap|ethena|stablecoin|usde|lending|dex|yield/i.test(title)) tags.push("DeFi/稳定币");
   if (/rwa|tokenization|tokenized|real.world|treasury|bond/i.test(title)) tags.push("RWA");
   if (/\b(ai|agent|agents|autonomous)\b|ai agent|agent wallet|smart wallet/i.test(title)) tags.push("AI Agent");
