@@ -50,7 +50,7 @@ export function buildRadar(data, options = {}) {
   items.push({
     code: "S01",
     type: "稳定币",
-    title: buildStablecoinLine(stablecoins, rankedNews),
+    title: buildStablecoinLine(rankedNews),
     detail: buildStablecoinDetail(stablecoins, rankedNews)
   });
 
@@ -127,9 +127,9 @@ export function buildFeishuMessage(radar, siteUrl) {
     `一句话｜${byCode.T00 ? cleanFeishuLine(byCode.T00.title, 42) : "今天没有足够硬的主线。"}`,
     "",
     "三个信号",
-    `M03｜${topSignal ? cleanFeishuLine(topSignal.title, 54) : "新闻主题分散，先降噪。"}`,
-    `S01｜${stablecoin ? cleanFeishuLine(stablecoin.title, 54) : "稳定币暂无异常信号。"}`,
     `M01｜${market ? cleanFeishuLine(market.title, 54) : "BTC/ETH 暂无数据。"}`,
+    `M03｜${topSignal ? cleanFeishuLine(topSignal.title, 54) : "新闻主题分散，先降噪。"}`,
+    `S01｜${stablecoin ? cleanFeishuLine(stablecoin.title, 54) : "稳定币暂无公司/监管新事件。"}`,
     "",
     `今天可写｜${writeOne ? cleanFeishuLine(writeOne.title, 48) : "今天不硬凑选题。"}`,
     "",
@@ -154,7 +154,7 @@ export function buildFeishuCard(radar, siteUrl) {
   const elements = [
     markdownBlock(`**一句话**\n${cleanFeishuLine(byCode.T00?.title || "今天没有足够硬的主线。", 86)}`),
     { tag: "hr" },
-    markdownBlock(`**三个信号**\nM03｜${cleanFeishuLine(topSignal?.title || "新闻主题分散，先降噪。", 82)}\nS01｜${cleanFeishuLine(stablecoin?.title || "稳定币暂无异常信号", 82)}\nM01｜${cleanFeishuLine(market?.title || "BTC/ETH 暂无数据", 82)}`),
+    markdownBlock(`**三个信号**\nM01｜${cleanFeishuLine(market?.title || "BTC/ETH 暂无数据", 82)}\nM03｜${cleanFeishuLine(topSignal?.title || "新闻主题分散，先降噪。", 82)}\nS01｜${cleanFeishuLine(stablecoin?.title || "稳定币暂无公司/监管新事件", 82)}`),
     { tag: "hr" },
     markdownBlock(`**今天可写**\n${cleanFeishuLine(writeOne?.title || "今天不硬凑选题。", 86)}`),
     markdownBlock(`**明天只盯一件事**\n${cleanFeishuLine(watchOne?.title || "明天看主线是否延续。", 86)}`)
@@ -358,38 +358,31 @@ function isLevelOne(title) {
 
 function buildPriceLine({ btc, eth }) {
   if (typeof btc?.usd !== "number" && typeof eth?.usd !== "number") {
-    return "BTC/ETH 价格源暂时不可用，今天先看新闻主线和稳定币供应。";
+    return "BTC/ETH 价格源暂时不可用，今天先看新闻主线。";
   }
   return `BTC ${formatUsd(btc?.usd)} (${formatPct(btc?.change24h)}), ETH ${formatUsd(eth?.usd)} (${formatPct(eth?.change24h)})`;
 }
 
-function buildStablecoinLine(stablecoins, news) {
-  const rows = [
-    stablecoins.usdt,
-    stablecoins.usdc,
-    stablecoins.usde
-  ].filter(Boolean);
-  const stableNews = news.find((item) => classifyTitle(item.title).includes("稳定币"));
+function buildStablecoinLine(news) {
+  const stableNews = news.filter((item) => classifyTitle(item.title).includes("稳定币")).slice(0, 2);
 
-  if (!rows.length && stableNews) return `稳定币新闻：${shortTitle(stableNews.title, 58)}`;
-  if (!rows.length) return "暂无稳定币供应数据，先看监管和 USDT/USDC 新闻。";
-
-  const parts = rows.map((row) => {
-    const change = typeof row.change7dPct === "number" ? `, 7d ${formatPct(row.change7dPct)}` : "";
-    return `${row.symbol} ${formatCompactUsd(row.supplyUsd)}${change}`;
-  });
-
-  return parts.join("｜");
+  if (stableNews.length) {
+    const lead = stableNews[0];
+    const second = stableNews[1];
+    const secondText = second ? `；${humanizeTitle(second.title)}` : "";
+    return `稳定币｜${humanizeTitle(lead.title)}${secondText}｜${lead.source}｜${formatFreshness(lead)}`;
+  }
+  return "稳定币｜过去 36 小时没有抓到 Tether/Circle/监管/支付硬事件";
 }
 
 function buildStablecoinDetail(stablecoins, news) {
   const stableNews = news.find((item) => classifyTitle(item.title).includes("稳定币"));
   if (stableNews) {
-    return `新闻侧看 ${stableNews.source}：${stableNews.title}`;
+    return `来源 ${stableNews.source}，新鲜度 ${formatFreshness(stableNews)}。看它是监管口径、公司动作，还是支付采用。`;
   }
   const usde = stablecoins.usde;
-  if (usde?.supplyUsd) return `USDe 供应 ${formatCompactUsd(usde.supplyUsd)}，用来观察 Ethena 风险偏好和收益需求。`;
-  return "稳定币没有明显新事件时，只看供应变化、脱锚风险、监管口径和交易所/支付采用。";
+  if (usde?.supplyUsd) return `没有公司/监管新事件时，USDe 只作为 Ethena 风险偏好的背景数据，不放进飞书主卡。`;
+  return "稳定币没有明显新事件时，不硬凑价格和供应量。";
 }
 
 function isLevelTwo(title) {
@@ -479,6 +472,9 @@ function formatFreshness(item) {
 
 function humanizeTitle(input) {
   return input
+    .replace(/CoinShares debuts Bitcoin mining ETF in Europe entrance/ig, "CoinShares在欧洲推出比特币矿业ETF")
+    .replace(/BIS warns stablecoins could weaken capital controls in emerging markets/ig, "BIS警告稳定币可能削弱新兴市场资本管制")
+    .replace(/Tether-backed Twenty One, Strike merger plan scrapped: Bloomberg/ig, "Tether支持的Twenty One与Strike合并计划据称取消")
     .replace(/^机构\/ETF：Strategy Sells 3,588 Bitcoin.*/i, "BTC 财库｜公司卖币付息，机构持币叙事开始接受压力测试")
     .replace(/^BTC 财库：Strategy Sells 3,588 Bitcoin.*/i, "BTC 财库｜公司卖币付息，机构持币叙事开始接受压力测试")
     .replace(/^BTC 财库、监管\/宏观、机构\/ETF｜The Defiant: Strategy Sells 3,588 Bitcoin for \$216M to Fund Dividend Payments/i, "BTC 财库｜Strategy 卖出 3,588 BTC 筹 2.16 亿美元付股息")

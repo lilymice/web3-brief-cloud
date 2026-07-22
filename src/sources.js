@@ -1,3 +1,5 @@
+import https from "node:https";
+
 const NEWS_FEEDS = [
   {
     name: "CoinDesk",
@@ -52,6 +54,18 @@ async function safeSource(fn, fallback) {
 
 async function getPrices() {
   try {
+    return await getYahooPrices();
+  } catch {
+    // Continue through the API fallbacks below.
+  }
+
+  try {
+    return await getDefiLlamaPrices();
+  } catch {
+    // Continue through the exchange/API fallbacks below.
+  }
+
+  try {
     const url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,hyperliquid&vs_currencies=usd&include_24hr_change=true";
     const json = await fetchJson(url);
 
@@ -67,6 +81,37 @@ async function getPrices() {
       return getCoinbasePrices();
     }
   }
+}
+
+async function getYahooPrices() {
+  const [btc, eth, hype] = await Promise.all([
+    fetchJson("https://query1.finance.yahoo.com/v8/finance/chart/BTC-USD?range=1d&interval=1d"),
+    fetchJson("https://query1.finance.yahoo.com/v8/finance/chart/ETH-USD?range=1d&interval=1d"),
+    fetchJson("https://coins.llama.fi/prices/current/coingecko:hyperliquid").catch(() => null)
+  ]);
+
+  return {
+    btc: normalizeYahooPrice(btc),
+    eth: normalizeYahooPrice(eth),
+    hype: normalizeLlamaPrice(hype?.coins?.["coingecko:hyperliquid"])
+  };
+}
+
+async function getDefiLlamaPrices() {
+  const tokenList = "coingecko:bitcoin,coingecko:ethereum,coingecko:hyperliquid";
+  const yesterday = Math.floor(Date.now() / 1000) - 86400;
+  const [current, historical] = await Promise.all([
+    fetchJson(`https://coins.llama.fi/prices/current/${tokenList}`),
+    fetchJson(`https://coins.llama.fi/prices/historical/${yesterday}/${tokenList}`)
+  ]);
+  const coins = current.coins || {};
+  const previousCoins = historical.coins || {};
+
+  return {
+    btc: normalizeLlamaPrice(coins["coingecko:bitcoin"], previousCoins["coingecko:bitcoin"]),
+    eth: normalizeLlamaPrice(coins["coingecko:ethereum"], previousCoins["coingecko:ethereum"]),
+    hype: normalizeLlamaPrice(coins["coingecko:hyperliquid"], previousCoins["coingecko:hyperliquid"])
+  };
 }
 
 async function getBinancePrices() {
@@ -162,6 +207,30 @@ function normalizeCoinbasePrice(row) {
   };
 }
 
+function normalizeYahooPrice(row) {
+  const meta = row?.chart?.result?.[0]?.meta;
+  const price = Number(meta?.regularMarketPrice);
+  const previousClose = Number(meta?.chartPreviousClose);
+  if (!Number.isFinite(price)) return null;
+  return {
+    usd: price,
+    change24h: Number.isFinite(previousClose) && previousClose !== 0
+      ? ((price - previousClose) / previousClose) * 100
+      : null
+  };
+}
+
+function normalizeLlamaPrice(row, previousRow = null) {
+  if (!row || typeof row.price !== "number") return null;
+  const previousPrice = previousRow?.price;
+  return {
+    usd: row.price,
+    change24h: typeof previousPrice === "number" && previousPrice !== 0
+      ? ((row.price - previousPrice) / previousPrice) * 100
+      : null
+  };
+}
+
 function normalizeStablecoin(row) {
   if (!row) return null;
   return {
@@ -229,17 +298,42 @@ function decodeXml(input) {
 }
 
 async function fetchJson(url) {
-  const response = await fetch(url, {
-    headers: { "User-Agent": "web3-market-radar/0.1" }
-  });
-  if (!response.ok) throw new Error(`Fetch failed ${response.status}: ${url}`);
-  return response.json();
+  const text = await fetchText(url);
+  return JSON.parse(text);
 }
 
 async function fetchText(url) {
-  const response = await fetch(url, {
-    headers: { "User-Agent": "web3-market-radar/0.1" }
+  try {
+    const response = await fetch(url, {
+      headers: { "User-Agent": "web3-market-radar/0.1" }
+    });
+    if (!response.ok) throw new Error(`Fetch failed ${response.status}: ${url}`);
+    return response.text();
+  } catch {
+    return fetchTextWithHttps(url);
+  }
+}
+
+function fetchTextWithHttps(url) {
+  return new Promise((resolve, reject) => {
+    const request = https.get(url, { headers: { "User-Agent": "web3-market-radar/0.1" } }, (response) => {
+      if ((response.statusCode || 500) >= 400) {
+        response.resume();
+        reject(new Error(`Fetch failed ${response.statusCode}: ${url}`));
+        return;
+      }
+
+      let body = "";
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => {
+        body += chunk;
+      });
+      response.on("end", () => resolve(body));
+    });
+
+    request.setTimeout(20000, () => {
+      request.destroy(new Error(`Fetch timeout: ${url}`));
+    });
+    request.on("error", reject);
   });
-  if (!response.ok) throw new Error(`Fetch failed ${response.status}: ${url}`);
-  return response.text();
 }
