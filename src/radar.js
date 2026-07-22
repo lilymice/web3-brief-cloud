@@ -10,15 +10,16 @@ export function buildRadar(data, options = {}) {
   const eth = data.prices.eth;
   const hype = data.prices.hype;
   const rankedNews = rankNews(data.news);
-  const narrativeTags = getNarrativeTags(rankedNews);
-  const primaryNews = rankedNews[0];
-  const secondaryNews = rankedNews[1];
-  const tertiaryNews = rankedNews[2];
+  const eventGroup = pickEventGroup(rankedNews, { btc, eth, hype });
+  const narrativeTags = getNarrativeTags(eventGroup.items.length ? eventGroup.items : rankedNews);
+  const primaryNews = eventGroup.items[0] || rankedNews[0];
+  const secondaryNews = eventGroup.items[1] || rankedNews.find((item) => item.title !== primaryNews?.title);
+  const tertiaryNews = eventGroup.items[2] || rankedNews.find((item) => item.title !== primaryNews?.title && item.title !== secondaryNews?.title);
 
   items.push({
     code: "T00",
     type: "总判断",
-    title: buildThesis({ btc, eth, hype, news: rankedNews, tags: narrativeTags }),
+    title: buildThesis({ btc, eth, hype, news: eventGroup.items.length ? eventGroup.items : rankedNews, tags: narrativeTags, eventGroup }),
     detail: "这条是当天内容的主线。它不负责预测涨跌，只负责判断今天市场更像风险扩张、风险收缩，还是主线缺失。"
   });
 
@@ -39,10 +40,10 @@ export function buildRadar(data, options = {}) {
   items.push({
     code: "M03",
     type: "市场信号",
-    title: buildNarrativeLine(rankedNews, narrativeTags),
+    title: buildNarrativeLine(eventGroup, primaryNews, narrativeTags),
     detail: primaryNews
-      ? `今天最值得先核验的新闻来自 ${primaryNews.source}：${primaryNews.title}`
-      : "今天新闻源没有抓到足够硬的主题，先不要强行拼主线。"
+      ? `新鲜度：${formatFreshness(primaryNews)}。来源 ${primaryNews.source}：${primaryNews.title}`
+      : "过去 36 小时内没有抓到足够硬的新事件，今天不要复用旧热点。"
   });
 
   items.push({
@@ -58,7 +59,7 @@ export function buildRadar(data, options = {}) {
     title: buildDynamicAngle(primaryNews, narrativeTags, "把今天最热的新闻拆成一个普通人能懂的问题。"),
     detail: primaryNews
       ? `写法：不要复述新闻。先引用 ${primaryNews.source} 的标题，再解释它为什么影响 ${describeTags(narrativeTags)}。`
-      : "写法：没有硬新闻时，就写“今天哪些信号不够硬”，比硬凑热点更可信。"
+      : "写法：没有新事件就别硬写旧闻。可以写“今天市场缺少一级信号，哪些东西只是噪音”。"
   });
 
   items.push({
@@ -83,7 +84,7 @@ export function buildRadar(data, options = {}) {
     title: buildWatchFromNews(primaryNews, narrativeTags, "今天主线有没有连续第二天出现"),
     detail: primaryNews
       ? `明天看同一主题是否继续出现在不同来源，而不是只看 ${primaryNews.source} 单条新闻。`
-      : "明天先看新闻主题有没有重新集中。没有集中，就继续降噪。"
+      : "明天优先扫一级事件：监管、ETF/机构资金、安全事故、交易所风险、BTC 财库和宏观冲击。"
   });
 
   items.push({
@@ -100,7 +101,7 @@ export function buildRadar(data, options = {}) {
     date,
     weekday,
     items,
-    sources: rankedNews.slice(0, 8)
+    sources: (eventGroup.items.length ? eventGroup.items : rankedNews).slice(0, 8)
   };
 }
 
@@ -218,11 +219,14 @@ function markdownBlock(content) {
   };
 }
 
-function buildThesis({ btc, eth, hype, news, tags }) {
+function buildThesis({ btc, eth, hype, news, tags, eventGroup }) {
   const btcChange = btc?.change24h ?? 0;
   const ethChange = eth?.change24h ?? 0;
   const hypeChange = hype?.change24h ?? 0;
 
+  if (eventGroup?.level === 1) return `一级事件：${eventGroup.reason}`;
+  if (eventGroup?.level === 2) return `二级信号：${eventGroup.reason}`;
+  if (eventGroup?.level === 3 && news.length) return `三级素材：${eventGroup.reason}`;
   if (btcChange < -2 && ethChange < btcChange) return "风险偏好偏弱，ETH 弱于 BTC，今天别写成反弹叙事。";
   if (btcChange > 2 && ethChange > btcChange) return "风险偏好有扩散迹象，重点看 ETH 和链上 beta 是否接力。";
   if (Math.abs(hypeChange) > Math.abs(btcChange) + 3) return "大盘信号一般，但链上交易叙事有独立波动，适合盯 Perp DEX。";
@@ -232,14 +236,13 @@ function buildThesis({ btc, eth, hype, news, tags }) {
   if (tags.includes("RWA")) return "RWA 线索出现，重点看资产、赎回和合规，不写空泛叙事。";
   if (tags.includes("AI Agent")) return "AI Agent 线索出现，重点看钱包权限、自动执行和风控边界。";
   if (news[0]) return `今天先盯这条线：${shortTitle(news[0].title, 42)}`;
-  return "今天主线不算硬，先用价格、资金、项目强弱做探测，不强行下结论。";
+  return "过去 36 小时没有抓到硬事件。今天只看市场温度，不拿旧新闻凑推送。";
 }
 
-function buildNarrativeLine(news, tags) {
-  const lead = news[0];
-  if (!lead) return "今日新闻主题分散，暂时没有单一强叙事。";
-  const tagText = tags.length ? tags.slice(0, 3).join("、") : "综合市场";
-  return `${tagText}｜${lead.source}: ${shortTitle(lead.title, 76)}`;
+function buildNarrativeLine(eventGroup, lead, tags) {
+  if (!lead) return "L0｜无新鲜主线｜过去 36 小时未抓到可推送的大事件";
+  const label = eventGroup.reason.replace(/[。.]$/, "");
+  return `L${eventGroup.level}｜${label}｜${shortTitle(lead.title, 62)}`;
 }
 
 function buildMarketAngle({ btc, eth }) {
@@ -277,6 +280,7 @@ function rankNews(news) {
     .map((item) => ({
       ...item,
       tags: classifyTitle(item.title),
+      level: classifyEventLevel(item.title),
       score: scoreTitle(item.title)
     }))
     .filter((item) => {
@@ -285,8 +289,88 @@ function rankNews(news) {
       seen.add(key);
       return true;
     })
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => a.level - b.level || b.score - a.score || (b.publishedAt || 0) - (a.publishedAt || 0))
     .slice(0, 12);
+}
+
+function pickEventGroup(news, prices) {
+  const groups = [
+    {
+      level: 1,
+      match: (item) => item.level === 1
+    },
+    {
+      level: 2,
+      match: (item) => item.level === 2
+    },
+    {
+      level: 3,
+      match: (item) => item.level === 3
+    }
+  ];
+
+  for (const group of groups) {
+    const items = news.filter(group.match).slice(0, 4);
+    if (items.length) return { ...group, reason: buildLevelReason(group.level, items), items };
+  }
+
+  if (hasLargeMarketMove(prices)) {
+    return {
+      level: 2,
+      reason: "BTC/ETH 出现明显波动，但新闻侧没有单一主线。",
+      items: []
+    };
+  }
+
+  return {
+    level: 3,
+    reason: news.length ? "今天没有明显大事件，先做低噪音观察。" : "今日暂无可用新事件，不复用旧热点。",
+    items: news.slice(0, 3)
+  };
+}
+
+function buildLevelReason(level, items) {
+  const lead = items[0];
+  const title = lead?.title || "";
+  const tags = lead?.tags || classifyTitle(title);
+
+  if (level === 1) {
+    if (tags.includes("BTC 财库")) return "BTC 财库卖币/融资信号，机构持币叙事承压。";
+    if (tags.includes("安全")) return "安全或攻击事件，先看风险是否外溢。";
+    if (tags.includes("监管/宏观")) return "监管/宏观事件可能改变风险定价。";
+    if (tags.includes("机构/ETF")) return "机构/ETF 事件可能改变资金方向。";
+    return "市场结构级事件，优先核验影响范围。";
+  }
+
+  if (level === 2) {
+    if (tags.includes("监管/宏观")) return "监管/宏观线索抬头，先看是否影响市场结构。";
+    if (tags.includes("机构/ETF")) return "机构/ETF 事件可能改变资金方向。";
+    if (tags.includes("RWA")) return "RWA/代币化出现可跟踪信号。";
+    if (tags.includes("DeFi/稳定币")) return "DeFi/稳定币出现赛道级信号。";
+    if (tags.includes("AI Agent")) return "AI Agent 出现产品或风控信号。";
+    if (tags.includes("Perp DEX")) return "链上交易/Perp DEX 风险偏好变化。";
+    return "赛道或机构层面的重要变化。";
+  }
+
+  return "项目动态或内容素材，可写但不当成市场主线。";
+}
+
+function classifyEventLevel(title) {
+  if (isLevelOne(title)) return 1;
+  if (isLevelTwo(title)) return 2;
+  return 3;
+}
+
+function isLevelOne(title) {
+  return /hack|exploit|stolen|attack|liquidat|bankrupt|insolven|halt|freeze|depeg|crash|lawsuit|charged|indict|settlement|etf approval|etf rejection|\bfed\b|rate cut|rate hike|\bsec\b|securities probe|binance.*(halt|freeze|hack|lawsuit|charged|settlement)|coinbase.*(halt|freeze|hack|lawsuit|charged|settlement)|strategy sells [\d,.]+ bitcoin|microstrategy sells [\d,.]+ bitcoin|strategy sells [\d,.]+ btc|microstrategy sells [\d,.]+ btc|bitcoin treasury.*sell/i.test(title);
+}
+
+function isLevelTwo(title) {
+  return /etf|flow|treasury|strategy|microstrategy|mstr|saylor|rwa|tokenization|stablecoin|ethena|aave|uniswap|hyperliquid|perp|robinhood|solana|ethereum|l2|layer 2|\b(ai|agent|agents)\b|regulation|senate|congress|court/i.test(title);
+}
+
+function hasLargeMarketMove({ btc, eth, hype }) {
+  return [btc?.change24h, eth?.change24h, hype?.change24h].some((value) => typeof value === "number" && Math.abs(value) >= 4);
 }
 
 function getNarrativeTags(news) {
@@ -317,6 +401,12 @@ function classifyTitle(title) {
 
 function scoreTitle(title) {
   let score = 0;
+  if (isLevelOne(title)) score += 100;
+  if (isLevelTwo(title)) score += 40;
+  if (/clarity|market structure|senate|congress|white house|bill|law|regulation|regulatory/i.test(title)) score += 16;
+  if (/etf|blackrock|flow|inflow|outflow|grayscale|coinshares/i.test(title)) score += 12;
+  if (/fed|powell|rate cut|rate hike|cpi|pce|jobs report/i.test(title)) score += 12;
+  if (/hack|exploit|stolen|security|depeg|halt|freeze|liquidat/i.test(title)) score += 12;
   if (/strategy|microstrategy|mstr|saylor|bitcoin treasury|btc treasury|corporate treasury|treasury company/i.test(title)) score += 10;
   if (/sell|sells|sold|selling|offload|offloads|raise|raises|stock sale|debt|liquidat/i.test(title) && /bitcoin|btc|strategy|microstrategy|mstr|saylor/i.test(title)) score += 8;
   if (/etf|blackrock|fed|sec|coinbase|binance|robinhood/i.test(title)) score += 5;
@@ -324,6 +414,7 @@ function scoreTitle(title) {
   if (/hyperliquid|ethena|aave|uniswap|rwa|tokenization|\b(ai|agent|agents)\b/i.test(title)) score += 4;
   if (/bitcoin|btc|ethereum|eth|solana/i.test(title)) score += 2;
   if (/\$?\d+(\.\d+)?\s?(m|b|million|billion|%)/i.test(title)) score += 2;
+  if (/mstr shares|skips bitcoin|stock sale/i.test(title)) score -= 18;
   return score;
 }
 
@@ -341,8 +432,18 @@ function cleanFeishuLine(input, maxLength) {
   return shortTitle(humanizeTitle(String(input).replace(/\s+/g, " ").trim()), maxLength);
 }
 
+function formatFreshness(item) {
+  if (!item?.publishedAt) return "发布时间未知";
+  const ageHours = Math.max(0, (Date.now() - item.publishedAt) / 36e5);
+  if (ageHours < 1) return "1 小时内";
+  if (ageHours < 24) return `${Math.round(ageHours)} 小时前`;
+  return `${Math.round(ageHours / 24)} 天前`;
+}
+
 function humanizeTitle(input) {
   return input
+    .replace(/^机构\/ETF：Strategy Sells 3,588 Bitcoin.*/i, "BTC 财库｜公司卖币付息，机构持币叙事开始接受压力测试")
+    .replace(/^BTC 财库：Strategy Sells 3,588 Bitcoin.*/i, "BTC 财库｜公司卖币付息，机构持币叙事开始接受压力测试")
     .replace(/^BTC 财库、监管\/宏观、机构\/ETF｜The Defiant: Strategy Sells 3,588 Bitcoin for \$216M to Fund Dividend Payments/i, "BTC 财库｜Strategy 卖出 3,588 BTC 筹 2.16 亿美元付股息")
     .replace(/^BTC 财库：Strategy Sells 3,588 Bitcoin for \$216M to Fund Dividend Payments/i, "BTC 财库｜Strategy 卖币付股息，这条线可以拆")
     .replace(/^BTC 财库｜继续看：Strategy Sells 3,588 Bitcoin.*/i, "BTC 财库｜明天看 MSTR/STRC 和后续披露")

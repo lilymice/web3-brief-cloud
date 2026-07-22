@@ -16,10 +16,16 @@ const NEWS_FEEDS = [
     url: "https://cryptoslate.com/feed/"
   },
   {
-    name: "Google News Strategy",
-    url: "https://news.google.com/rss/search?q=(Strategy%20OR%20MicroStrategy%20OR%20MSTR%20OR%20Saylor)%20bitcoin&hl=en-US&gl=US&ceid=US:en"
+    name: "Google News Crypto Market",
+    url: "https://news.google.com/rss/search?q=(bitcoin%20OR%20ethereum%20OR%20crypto)%20(ETF%20OR%20SEC%20OR%20Fed%20OR%20BlackRock%20OR%20Binance%20OR%20Coinbase%20OR%20hack%20OR%20liquidation%20OR%20treasury)&hl=en-US&gl=US&ceid=US:en"
+  },
+  {
+    name: "Google News Web3 Sectors",
+    url: "https://news.google.com/rss/search?q=(RWA%20OR%20tokenization%20OR%20DeFi%20OR%20Hyperliquid%20OR%20Ethena%20OR%20Aave%20OR%20Uniswap%20OR%20AI%20agent)%20crypto&hl=en-US&gl=US&ceid=US:en"
   }
 ];
+
+const NEWS_MAX_AGE_HOURS = 36;
 
 export async function collectSources() {
   const [prices, defi, news] = await Promise.all([
@@ -87,6 +93,7 @@ async function getDefi() {
 }
 
 async function getNews() {
+  const now = Date.now();
   const settled = await Promise.allSettled(
     NEWS_FEEDS.map(async (feed) => ({
       source: feed.name,
@@ -98,6 +105,8 @@ async function getNews() {
     .filter((item) => item.status === "fulfilled")
     .flatMap((item) => item.value.items)
     .filter((item) => isRelevant(item.title))
+    .filter((item) => isFreshNews(item, now))
+    .sort((a, b) => b.publishedAt - a.publishedAt)
     .slice(0, 60);
 }
 
@@ -119,16 +128,31 @@ function normalizeBinancePrice(row) {
 
 function parseRss(xml, source) {
   const itemBlocks = [...xml.matchAll(/<item[\s\S]*?<\/item>/g)].map((match) => match[0]);
-  return itemBlocks.map((block) => ({
-    source,
-    title: decodeXml(pickTag(block, "title")),
-    link: decodeXml(pickTag(block, "link")),
-    pubDate: decodeXml(pickTag(block, "pubDate"))
-  })).filter((item) => item.title);
+  return itemBlocks.map((block) => {
+    const pubDate = decodeXml(pickTag(block, "pubDate"));
+    return {
+      source,
+      title: decodeXml(pickTag(block, "title")),
+      link: decodeXml(pickTag(block, "link")),
+      pubDate,
+      publishedAt: parsePublishedAt(pubDate)
+    };
+  }).filter((item) => item.title);
 }
 
 function isRelevant(title) {
-  return /bitcoin|btc|ethereum|eth|etf|stablecoin|defi|rwa|tokenization|ai|agent|hyperliquid|aave|uniswap|ethena|solana|l2|hack|security|sec|fed|blackrock|coinbase|binance|strategy|microstrategy|mstr|saylor|treasury/i.test(title);
+  return /bitcoin|btc|ethereum|eth|crypto|etf|stablecoin|defi|rwa|tokenization|ai agent|agent wallet|crypto.*ai|ai.*crypto|hyperliquid|aave|uniswap|ethena|solana|l2|hack.*crypto|crypto.*hack|security.*crypto|crypto.*security|\bsec\b|fed|blackrock|coinbase|binance|strategy|microstrategy|mstr|saylor|treasury/i.test(title);
+}
+
+function isFreshNews(item, now) {
+  if (!item.publishedAt) return false;
+  const ageHours = (now - item.publishedAt) / 36e5;
+  return ageHours >= 0 && ageHours <= NEWS_MAX_AGE_HOURS;
+}
+
+function parsePublishedAt(input) {
+  const timestamp = Date.parse(input);
+  return Number.isNaN(timestamp) ? null : timestamp;
 }
 
 function pickTag(input, tag) {
