@@ -9,6 +9,7 @@ export function buildRadar(data, options = {}) {
   const btc = data.prices.btc;
   const eth = data.prices.eth;
   const hype = data.prices.hype;
+  const stablecoins = data.defi?.stablecoins || {};
   const rankedNews = rankNews(data.news);
   const eventGroup = pickEventGroup(rankedNews, { btc, eth, hype });
   const narrativeTags = getNarrativeTags(eventGroup.items.length ? eventGroup.items : rankedNews);
@@ -26,7 +27,7 @@ export function buildRadar(data, options = {}) {
   items.push({
     code: "M01",
     type: "市场信号",
-    title: `BTC ${formatUsd(btc?.usd)} (${formatPct(btc?.change24h)}), ETH ${formatUsd(eth?.usd)} (${formatPct(eth?.change24h)})`,
+    title: buildPriceLine({ btc, eth }),
     detail: "先看 BTC/ETH 的相对强弱。BTC 稳、ETH 弱，通常说明风险偏好没有完全回来；ETH 强于 BTC，才更像链上风险资产有扩散。"
   });
 
@@ -42,8 +43,15 @@ export function buildRadar(data, options = {}) {
     type: "市场信号",
     title: buildNarrativeLine(eventGroup, primaryNews, narrativeTags),
     detail: primaryNews
-      ? `新鲜度：${formatFreshness(primaryNews)}。来源 ${primaryNews.source}：${primaryNews.title}`
+      ? `新鲜度 ${formatFreshness(primaryNews)}，来源 ${primaryNews.source}。先看它有没有第二来源确认。`
       : "过去 36 小时内没有抓到足够硬的新事件，今天不要复用旧热点。"
+  });
+
+  items.push({
+    code: "S01",
+    type: "稳定币",
+    title: buildStablecoinLine(stablecoins, rankedNews),
+    detail: buildStablecoinDetail(stablecoins, rankedNews)
   });
 
   items.push({
@@ -108,19 +116,24 @@ export function buildRadar(data, options = {}) {
 export function buildFeishuMessage(radar, siteUrl) {
   const byCode = Object.fromEntries(radar.items.map((item) => [item.code, item]));
   const topSignal = byCode.M03;
+  const stablecoin = byCode.S01;
+  const market = byCode.M01;
   const writeOne = byCode.X02;
   const watchOne = byCode.W02;
 
   const lines = [
     radar.title,
     "",
-    `T00｜${byCode.T00 ? cleanFeishuLine(byCode.T00.title, 42) : "今天没有足够硬的主线。"}`,
+    `一句话｜${byCode.T00 ? cleanFeishuLine(byCode.T00.title, 42) : "今天没有足够硬的主线。"}`,
     "",
+    "三个信号",
     `M03｜${topSignal ? cleanFeishuLine(topSignal.title, 54) : "新闻主题分散，先降噪。"}`,
+    `S01｜${stablecoin ? cleanFeishuLine(stablecoin.title, 54) : "稳定币暂无异常信号。"}`,
+    `M01｜${market ? cleanFeishuLine(market.title, 54) : "BTC/ETH 暂无数据。"}`,
     "",
-    `X02｜${writeOne ? cleanFeishuLine(writeOne.title, 48) : "今天不硬凑选题。"}`,
+    `今天可写｜${writeOne ? cleanFeishuLine(writeOne.title, 48) : "今天不硬凑选题。"}`,
     "",
-    `W02｜${watchOne ? cleanFeishuLine(watchOne.title, 48) : "明天看主线是否延续。"}`
+    `明天盯｜${watchOne ? cleanFeishuLine(watchOne.title, 48) : "明天看主线是否延续。"}`
   ];
 
   if (siteUrl) {
@@ -134,39 +147,17 @@ export function buildFeishuCard(radar, siteUrl) {
   const byCode = Object.fromEntries(radar.items.map((item) => [item.code, item]));
   const topSignal = byCode.M03;
   const market = byCode.M01;
-  const perp = byCode.M02;
+  const stablecoin = byCode.S01;
   const writeOne = byCode.X02;
-  const writeTwo = byCode.X03;
   const watchOne = byCode.W02;
-  const watchTwo = byCode.W03;
 
   const elements = [
-    markdownBlock(`**T00 总判断**\n${cleanFeishuLine(byCode.T00?.title || "今天没有足够硬的主线。", 90)}`),
+    markdownBlock(`**一句话**\n${cleanFeishuLine(byCode.T00?.title || "今天没有足够硬的主线。", 86)}`),
     { tag: "hr" },
-    markdownBlock(`**M03 今日主线**\n${cleanFeishuLine(topSignal?.title || "新闻主题分散，先降噪。", 120)}`),
-    markdownBlock(`**为什么重要**\n${cleanFeishuLine(topSignal?.detail || "这条线决定今天内容该往哪边写。", 120)}`),
-    {
-      tag: "div",
-      fields: [
-        {
-          is_short: true,
-          text: {
-            tag: "lark_md",
-            content: `**市场读数**\n${cleanFeishuLine(market?.title || "BTC/ETH 暂无数据", 52)}`
-          }
-        },
-        {
-          is_short: true,
-          text: {
-            tag: "lark_md",
-            content: `**风险偏好**\n${cleanFeishuLine(perp?.title || "HYPE 暂无数据", 52)}`
-          }
-        }
-      ]
-    },
+    markdownBlock(`**三个信号**\nM03｜${cleanFeishuLine(topSignal?.title || "新闻主题分散，先降噪。", 82)}\nS01｜${cleanFeishuLine(stablecoin?.title || "稳定币暂无异常信号", 82)}\nM01｜${cleanFeishuLine(market?.title || "BTC/ETH 暂无数据", 82)}`),
     { tag: "hr" },
-    markdownBlock(`**X 可写切口**\n- X02｜${cleanFeishuLine(writeOne?.title || "今天不硬凑选题。", 72)}\n- X03｜${cleanFeishuLine(writeTwo?.title || "备用切口等详情页。", 72)}`),
-    markdownBlock(`**W 明天盯盘**\n- W02｜${cleanFeishuLine(watchOne?.title || "明天看主线是否延续。", 72)}\n- W03｜${cleanFeishuLine(watchTwo?.title || "看是否有第二来源确认。", 72)}`)
+    markdownBlock(`**今天可写**\n${cleanFeishuLine(writeOne?.title || "今天不硬凑选题。", 86)}`),
+    markdownBlock(`**明天只盯一件事**\n${cleanFeishuLine(watchOne?.title || "明天看主线是否延续。", 86)}`)
   ];
 
   if (siteUrl) {
@@ -188,7 +179,7 @@ export function buildFeishuCard(radar, siteUrl) {
     elements: [
       {
         tag: "plain_text",
-        content: "飞书看摘要，详情页看来源和展开。不做投资建议。"
+        content: "飞书只放主线。要展开就发编号，比如 M03、S01、X02。"
       }
     ]
   });
@@ -365,6 +356,42 @@ function isLevelOne(title) {
   return /hack|exploit|stolen|attack|liquidat|bankrupt|insolven|halt|freeze|depeg|crash|lawsuit|charged|indict|settlement|etf approval|etf rejection|\bfed\b|rate cut|rate hike|\bsec\b|securities probe|binance.*(halt|freeze|hack|lawsuit|charged|settlement)|coinbase.*(halt|freeze|hack|lawsuit|charged|settlement)|strategy sells [\d,.]+ bitcoin|microstrategy sells [\d,.]+ bitcoin|strategy sells [\d,.]+ btc|microstrategy sells [\d,.]+ btc|bitcoin treasury.*sell/i.test(title);
 }
 
+function buildPriceLine({ btc, eth }) {
+  if (typeof btc?.usd !== "number" && typeof eth?.usd !== "number") {
+    return "BTC/ETH 价格源暂时不可用，今天先看新闻主线和稳定币供应。";
+  }
+  return `BTC ${formatUsd(btc?.usd)} (${formatPct(btc?.change24h)}), ETH ${formatUsd(eth?.usd)} (${formatPct(eth?.change24h)})`;
+}
+
+function buildStablecoinLine(stablecoins, news) {
+  const rows = [
+    stablecoins.usdt,
+    stablecoins.usdc,
+    stablecoins.usde
+  ].filter(Boolean);
+  const stableNews = news.find((item) => classifyTitle(item.title).includes("稳定币"));
+
+  if (!rows.length && stableNews) return `稳定币新闻：${shortTitle(stableNews.title, 58)}`;
+  if (!rows.length) return "暂无稳定币供应数据，先看监管和 USDT/USDC 新闻。";
+
+  const parts = rows.map((row) => {
+    const change = typeof row.change7dPct === "number" ? `, 7d ${formatPct(row.change7dPct)}` : "";
+    return `${row.symbol} ${formatCompactUsd(row.supplyUsd)}${change}`;
+  });
+
+  return parts.join("｜");
+}
+
+function buildStablecoinDetail(stablecoins, news) {
+  const stableNews = news.find((item) => classifyTitle(item.title).includes("稳定币"));
+  if (stableNews) {
+    return `新闻侧看 ${stableNews.source}：${stableNews.title}`;
+  }
+  const usde = stablecoins.usde;
+  if (usde?.supplyUsd) return `USDe 供应 ${formatCompactUsd(usde.supplyUsd)}，用来观察 Ethena 风险偏好和收益需求。`;
+  return "稳定币没有明显新事件时，只看供应变化、脱锚风险、监管口径和交易所/支付采用。";
+}
+
 function isLevelTwo(title) {
   return /etf|flow|treasury|strategy|microstrategy|mstr|saylor|rwa|tokenization|stablecoin|ethena|aave|uniswap|hyperliquid|perp|robinhood|solana|ethereum|l2|layer 2|\b(ai|agent|agents)\b|regulation|senate|congress|court/i.test(title);
 }
@@ -388,6 +415,7 @@ function classifyTitle(title) {
   const tags = [];
   if (/strategy|microstrategy|mstr|saylor|bitcoin treasury|btc treasury|corporate treasury|treasury company/i.test(title)) tags.push("BTC 财库");
   if (/etf|blackrock|coinbase|robinhood|institution|treasury|fund|flow/i.test(title)) tags.push("机构/ETF");
+  if (/stablecoin|usdt|usdc|usde|tether|circle|depeg/i.test(title)) tags.push("稳定币");
   if (/defi|aave|uniswap|ethena|stablecoin|usde|lending|dex|yield/i.test(title)) tags.push("DeFi/稳定币");
   if (/rwa|tokenization|tokenized|real.world|treasury|bond/i.test(title)) tags.push("RWA");
   if (/\b(ai|agent|agents|autonomous)\b|ai agent|agent wallet|smart wallet/i.test(title)) tags.push("AI Agent");
@@ -404,6 +432,7 @@ function scoreTitle(title) {
   if (isLevelOne(title)) score += 100;
   if (isLevelTwo(title)) score += 40;
   if (/clarity|market structure|senate|congress|white house|bill|law|regulation|regulatory/i.test(title)) score += 16;
+  if (/stablecoin|usdt|usdc|usde|tether|circle|depeg/i.test(title)) score += 14;
   if (/etf|blackrock|flow|inflow|outflow|grayscale|coinshares/i.test(title)) score += 12;
   if (/fed|powell|rate cut|rate hike|cpi|pce|jobs report/i.test(title)) score += 12;
   if (/hack|exploit|stolen|security|depeg|halt|freeze|liquidat/i.test(title)) score += 12;
@@ -430,6 +459,14 @@ function shortTitle(title, maxLength) {
 function cleanFeishuLine(input, maxLength) {
   if (!input) return "";
   return shortTitle(humanizeTitle(String(input).replace(/\s+/g, " ").trim()), maxLength);
+}
+
+function formatCompactUsd(value) {
+  if (typeof value !== "number") return "N/A";
+  if (value >= 1e12) return `$${(value / 1e12).toFixed(2)}T`;
+  if (value >= 1e9) return `$${(value / 1e9).toFixed(1)}B`;
+  if (value >= 1e6) return `$${(value / 1e6).toFixed(0)}M`;
+  return formatUsd(value);
 }
 
 function formatFreshness(item) {
@@ -461,7 +498,7 @@ function formatUsd(value) {
 }
 
 function formatPct(value) {
-  if (typeof value !== "number") return "N/A";
+  if (typeof value !== "number") return "24h 暂无";
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 

@@ -22,6 +22,10 @@ const NEWS_FEEDS = [
   {
     name: "Google News Web3 Sectors",
     url: "https://news.google.com/rss/search?q=(RWA%20OR%20tokenization%20OR%20DeFi%20OR%20Hyperliquid%20OR%20Ethena%20OR%20Aave%20OR%20Uniswap%20OR%20AI%20agent)%20crypto&hl=en-US&gl=US&ceid=US:en"
+  },
+  {
+    name: "Google News Stablecoins",
+    url: "https://news.google.com/rss/search?q=(stablecoin%20OR%20USDT%20OR%20USDC%20OR%20USDe%20OR%20Tether%20OR%20Circle)%20(crypto%20OR%20regulation%20OR%20payments%20OR%20treasury)&hl=en-US&gl=US&ceid=US:en"
   }
 ];
 
@@ -57,7 +61,11 @@ async function getPrices() {
       hype: normalizePrice(json.hyperliquid)
     };
   } catch {
-    return getBinancePrices();
+    try {
+      return await getBinancePrices();
+    } catch {
+      return getCoinbasePrices();
+    }
   }
 }
 
@@ -68,6 +76,19 @@ async function getBinancePrices() {
   return {
     btc: normalizeBinancePrice(bySymbol.BTCUSDT),
     eth: normalizeBinancePrice(bySymbol.ETHUSDT),
+    hype: null
+  };
+}
+
+async function getCoinbasePrices() {
+  const [btc, eth] = await Promise.all([
+    fetchJson("https://api.coinbase.com/v2/prices/BTC-USD/spot"),
+    fetchJson("https://api.coinbase.com/v2/prices/ETH-USD/spot")
+  ]);
+
+  return {
+    btc: normalizeCoinbasePrice(btc),
+    eth: normalizeCoinbasePrice(eth),
     hype: null
   };
 }
@@ -88,6 +109,12 @@ async function getDefi() {
     aave: pickProtocol("AAVE"),
     uniswap: pickProtocol("Uniswap"),
     ethena: pickProtocol("Ethena"),
+    stablecoins: {
+      usdt: normalizeStablecoin(pickStable("USDT")),
+      usdc: normalizeStablecoin(pickStable("USDC")),
+      usde: normalizeStablecoin(pickStable("USDe")),
+      dai: normalizeStablecoin(pickStable("DAI"))
+    },
     usde: pickStable("USDe")
   };
 }
@@ -126,6 +153,38 @@ function normalizeBinancePrice(row) {
   };
 }
 
+function normalizeCoinbasePrice(row) {
+  const amount = Number(row?.data?.amount);
+  if (!Number.isFinite(amount)) return null;
+  return {
+    usd: amount,
+    change24h: null
+  };
+}
+
+function normalizeStablecoin(row) {
+  if (!row) return null;
+  return {
+    symbol: row.symbol,
+    name: row.name,
+    supplyUsd: extractPeggedUsd(row.circulating),
+    change1dPct: normalizeMaybeNumber(row.change_1d),
+    change7dPct: normalizeMaybeNumber(row.change_7d),
+    pegType: row.pegType
+  };
+}
+
+function extractPeggedUsd(value) {
+  if (typeof value === "number") return value;
+  if (!value || typeof value !== "object") return null;
+  return normalizeMaybeNumber(value.peggedUSD ?? value.PEGGEDUSD ?? value.usd);
+}
+
+function normalizeMaybeNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 function parseRss(xml, source) {
   const itemBlocks = [...xml.matchAll(/<item[\s\S]*?<\/item>/g)].map((match) => match[0]);
   return itemBlocks.map((block) => {
@@ -141,7 +200,7 @@ function parseRss(xml, source) {
 }
 
 function isRelevant(title) {
-  return /bitcoin|btc|ethereum|eth|crypto|etf|stablecoin|defi|rwa|tokenization|ai agent|agent wallet|crypto.*ai|ai.*crypto|hyperliquid|aave|uniswap|ethena|solana|l2|hack.*crypto|crypto.*hack|security.*crypto|crypto.*security|\bsec\b|fed|blackrock|coinbase|binance|strategy|microstrategy|mstr|saylor|treasury/i.test(title);
+  return /bitcoin|btc|ethereum|eth|crypto|etf|stablecoin|usdt|usdc|usde|tether|circle|defi|rwa|tokenization|ai agent|agent wallet|crypto.*ai|ai.*crypto|hyperliquid|aave|uniswap|ethena|solana|l2|hack.*crypto|crypto.*hack|security.*crypto|crypto.*security|\bsec\b|fed|blackrock|coinbase|binance|strategy|microstrategy|mstr|saylor|treasury/i.test(title);
 }
 
 function isFreshNews(item, now) {
